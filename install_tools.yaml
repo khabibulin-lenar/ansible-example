@@ -2,8 +2,6 @@
 - hosts: 127.0.0.1
   connection: local
   become: yes
-  vars:
-    terraform_version: 0.14.6
   tasks:
     - name: Install the dependencies
       ansible.builtin.package:
@@ -19,17 +17,6 @@
         ./aws/install -i /usr/local/aws-cli -b /usr/local/bin --update
         ln -nsf /usr/local/bin/aws /usr/bin/aws
         rm -rf awscliv2.zip
-    - name: Downloading Terraform package
-      command: wget https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip
-      retries: 6
-      delay: 30
-      register: result
-      until: result.rc == 0
-    - name: Installing Terraform
-      shell: |
-        unzip terraform_{{ terraform_version }}_linux_amd64.zip
-        mv terraform /usr/bin/
-        rm -rf terraform_{{ terraform_version }}_linux_amd64.zip
     - name: Install aws-iam-authenticator
       shell: "{{ item }}"
       with_items:
