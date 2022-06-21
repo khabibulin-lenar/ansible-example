@@ -1,0 +1,41 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  become: yes
+  tasks:
+    - name: Set the AWS Load Balancer Controller version
+      shell: |
+        echo 'export LBC_VERSION="v2.4.1"' >>  ~/.bash_profile
+        echo 'export LBC_CHART_VERSION="1.4.1"' >>  ~/.bash_profile
+        .  ~/.bash_profile
+    - name: Create an AWSLoadBalancerControllerIAMPolicy
+      shell: |
+        curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/${LBC_VERSION}/docs/install/iam_policy.json
+        aws iam create-policy \
+            --policy-name AWSLoadBalancerControllerIAMPolicy \
+            --policy-document file://iam_policy.json
+    - name: Create a IAM role and ServiceAccount for the Load Balancer
+      shell: |
+        eksctl create iamserviceaccount \
+          --cluster aline-cluster-lk \
+          --namespace kube-system \
+          --name aws-load-balancer-controller \
+          --attach-policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
+          --override-existing-serviceaccounts \
+          --approve
+    - name: Install the TargetGroupBinding CRDs
+      shell: |
+        kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
+        kubectl get crd
+    - name: Deploy the Helm Chart for the Load Balancer
+      shell: |
+        helm repo add eks https://aws.github.io/eks-charts
+        helm upgrade -i aws-load-balancer-controller \
+            eks/aws-load-balancer-controller \
+            -n kube-system \
+            --set clusterName=aline-cluster-lk \
+            --set serviceAccount.create=false \
+            --set serviceAccount.name=aws-load-balancer-controller \
+            --set image.tag="${LBC_VERSION}" \
+            --version="${LBC_CHART_VERSION}"
+        kubectl -n kube-system rollout status deployment aws-load-balancer-controller
